@@ -1,0 +1,410 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  PHARMACIST
+  CASHIER
+  DISPENSER
+  VIEWER
+}
+
+enum PurchaseStatus {
+  DRAFT
+  ORDERED
+  RECEIVED
+  CANCELLED
+}
+
+enum PrescriptionStatus {
+  PENDING
+  DISPENSED
+  PARTIAL
+  CANCELLED
+}
+
+enum PaymentMethod {
+  CASH
+  MPESA
+  CARD
+  INSURANCE
+  CREDIT
+}
+
+enum SaleStatus {
+  COMPLETED
+  REFUNDED
+  PARTIAL_REFUND
+  VOID
+}
+
+enum TxType {
+  PURCHASE_IN
+  SALE_OUT
+  ADJUSTMENT
+  TRANSFER_IN
+  TRANSFER_OUT
+  EXPIRY_WRITE_OFF
+  RETURN_IN
+}
+
+model Pharmacy {
+  id           String    @id @default(cuid())
+  name         String
+  licenseNo    String    @unique
+  phone        String
+  email        String?
+  address      String
+  county       String
+  mpesaTill    String?
+  mpesaPaybill String?
+  logoUrl      String?
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  branches     Branch[]
+  users        User[]
+  products     Product[]
+  customers    Customer[]
+  suppliers    Supplier[]
+  settings     Setting[]
+  @@map("pharmacies")
+}
+
+model Branch {
+  id          String   @id @default(cuid())
+  pharmacyId  String
+  name        String
+  address     String
+  phone       String
+  isMain      Boolean  @default(false)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  pharmacy    Pharmacy  @relation(fields: [pharmacyId], references: [id])
+  users       User[]
+  sales       Sale[]
+  purchases   Purchase[]
+  inventoryTx InventoryTransaction[]
+  @@index([pharmacyId])
+  @@map("branches")
+}
+
+model User {
+  id           String    @id @default(cuid())
+  pharmacyId   String
+  branchId     String?
+  firstName    String
+  lastName     String
+  email        String    @unique
+  phone        String?
+  passwordHash String
+  role         Role      @default(CASHIER)
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+  pharmacy     Pharmacy   @relation(fields: [pharmacyId], references: [id])
+  branch       Branch?    @relation(fields: [branchId], references: [id])
+  sales        Sale[]
+  auditLogs    AuditLog[]
+  @@index([pharmacyId])
+  @@index([email])
+  @@map("users")
+}
+
+model Category {
+  id        String     @id @default(cuid())
+  name      String
+  parentId  String?
+  createdAt DateTime   @default(now())
+  parent    Category?  @relation("CategoryTree", fields: [parentId], references: [id])
+  children  Category[] @relation("CategoryTree")
+  products  Product[]
+  @@map("categories")
+}
+
+model Product {
+  id                   String    @id @default(cuid())
+  pharmacyId           String
+  categoryId           String?
+  name                 String
+  genericName          String?
+  barcode              String?
+  sku                  String?
+  description          String?
+  unit                 String    @default("pcs")
+  costPrice            Decimal   @db.Decimal(12, 2)
+  sellingPrice         Decimal   @db.Decimal(12, 2)
+  vatRate              Decimal   @db.Decimal(5, 2)  @default(16.00)
+  reorderLevel         Int       @default(10)
+  requiresPrescription Boolean   @default(false)
+  isActive             Boolean   @default(true)
+  imageUrl             String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  deletedAt            DateTime?
+  pharmacy      Pharmacy       @relation(fields: [pharmacyId], references: [id])
+  category      Category?      @relation(fields: [categoryId], references: [id])
+  batches       ProductBatch[]
+  saleItems     SaleItem[]
+  purchaseItems PurchaseItem[]
+  inventoryTx   InventoryTransaction[]
+  @@index([pharmacyId])
+  @@index([barcode])
+  @@map("products")
+}
+
+model ProductBatch {
+  id           String    @id @default(cuid())
+  productId    String
+  batchNo      String
+  expiryDate   DateTime
+  quantity     Int
+  costPrice    Decimal   @db.Decimal(12, 2)
+  sellingPrice Decimal   @db.Decimal(12, 2)
+  supplierId   String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  product    Product    @relation(fields: [productId], references: [id])
+  supplier   Supplier?  @relation(fields: [supplierId], references: [id])
+  saleItems  SaleItem[]
+  @@index([productId])
+  @@index([expiryDate])
+  @@map("product_batches")
+}
+
+model Customer {
+  id          String    @id @default(cuid())
+  pharmacyId  String
+  firstName   String
+  lastName    String?
+  phone       String
+  email       String?
+  idNumber    String?
+  dateOfBirth DateTime?
+  allergies   String?
+  notes       String?
+  loyaltyPts  Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+  pharmacy      Pharmacy       @relation(fields: [pharmacyId], references: [id])
+  sales         Sale[]
+  prescriptions Prescription[]
+  @@index([pharmacyId, phone])
+  @@map("customers")
+}
+
+model Supplier {
+  id           String    @id @default(cuid())
+  pharmacyId   String
+  name         String
+  contactName  String?
+  phone        String
+  email        String?
+  address      String?
+  kraPin       String?
+  paymentTerms Int       @default(30)
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+  pharmacy  Pharmacy       @relation(fields: [pharmacyId], references: [id])
+  purchases Purchase[]
+  batches   ProductBatch[]
+  @@map("suppliers")
+}
+
+model Purchase {
+  id          String         @id @default(cuid())
+  branchId    String
+  supplierId  String
+  invoiceNo   String?
+  status      PurchaseStatus @default(DRAFT)
+  totalAmount Decimal        @db.Decimal(12, 2)
+  notes       String?
+  receivedAt  DateTime?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  branch   Branch         @relation(fields: [branchId], references: [id])
+  supplier Supplier       @relation(fields: [supplierId], references: [id])
+  items    PurchaseItem[]
+  @@index([branchId])
+  @@map("purchases")
+}
+
+model PurchaseItem {
+  id           String   @id @default(cuid())
+  purchaseId   String
+  productId    String
+  batchNo      String
+  expiryDate   DateTime
+  quantity     Int
+  costPrice    Decimal  @db.Decimal(12, 2)
+  sellingPrice Decimal  @db.Decimal(12, 2)
+  purchase Purchase @relation(fields: [purchaseId], references: [id])
+  product  Product  @relation(fields: [productId], references: [id])
+  @@map("purchase_items")
+}
+
+model Prescription {
+  id           String             @id @default(cuid())
+  customerId   String
+  doctorName   String?
+  facilityName String?
+  issuedDate   DateTime
+  expiryDate   DateTime?
+  status       PrescriptionStatus @default(PENDING)
+  imageUrl     String?
+  notes        String?
+  createdAt    DateTime           @default(now())
+  customer Customer          @relation(fields: [customerId], references: [id])
+  items    PrescriptionItem[]
+  sales    Sale[]
+  @@map("prescriptions")
+}
+
+model PrescriptionItem {
+  id             String       @id @default(cuid())
+  prescriptionId String
+  productName    String
+  dosage         String?
+  frequency      String?
+  duration       String?
+  quantity       Int
+  prescription Prescription @relation(fields: [prescriptionId], references: [id])
+  @@map("prescription_items")
+}
+
+model Sale {
+  id             String        @id @default(cuid())
+  branchId       String
+  userId         String
+  customerId     String?
+  prescriptionId String?
+  receiptNo      String        @unique
+  status         SaleStatus    @default(COMPLETED)
+  subtotal       Decimal       @db.Decimal(12, 2)
+  vatAmount      Decimal       @db.Decimal(12, 2)
+  discount       Decimal       @db.Decimal(12, 2) @default(0)
+  totalAmount    Decimal       @db.Decimal(12, 2)
+  amountPaid     Decimal       @db.Decimal(12, 2)
+  change         Decimal       @db.Decimal(12, 2) @default(0)
+  paymentMethod  PaymentMethod @default(CASH)
+  notes          String?
+  syncedAt       DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  branch       Branch        @relation(fields: [branchId], references: [id])
+  user         User          @relation(fields: [userId], references: [id])
+  customer     Customer?     @relation(fields: [customerId], references: [id])
+  prescription Prescription? @relation(fields: [prescriptionId], references: [id])
+  items        SaleItem[]
+  payments     Payment[]
+  @@index([branchId, createdAt])
+  @@index([receiptNo])
+  @@map("sales")
+}
+
+model SaleItem {
+  id          String   @id @default(cuid())
+  saleId      String
+  productId   String
+  batchId     String?
+  productName String
+  quantity    Int
+  unitPrice   Decimal  @db.Decimal(12, 2)
+  vatRate     Decimal  @db.Decimal(5, 2)
+  vatAmount   Decimal  @db.Decimal(12, 2)
+  discount    Decimal  @db.Decimal(12, 2) @default(0)
+  total       Decimal  @db.Decimal(12, 2)
+  sale    Sale          @relation(fields: [saleId], references: [id])
+  product Product       @relation(fields: [productId], references: [id])
+  batch   ProductBatch? @relation(fields: [batchId], references: [id])
+  @@map("sale_items")
+}
+
+model Payment {
+  id        String        @id @default(cuid())
+  saleId    String
+  method    PaymentMethod
+  amount    Decimal       @db.Decimal(12, 2)
+  reference String?
+  status    String        @default("SUCCESS")
+  createdAt DateTime      @default(now())
+  sale    Sale              @relation(fields: [saleId], references: [id])
+  mpesaTx MpesaTransaction?
+  @@map("payments")
+}
+
+model MpesaTransaction {
+  id                String   @id @default(cuid())
+  paymentId         String?  @unique
+  merchantRequestId String
+  checkoutRequestId String   @unique
+  phoneNumber       String
+  amount            Decimal  @db.Decimal(12, 2)
+  mpesaReceiptNo    String?
+  resultCode        Int?
+  resultDesc        String?
+  status            String   @default("PENDING")
+  stkPushSentAt     DateTime @default(now())
+  confirmedAt       DateTime?
+  createdAt         DateTime @default(now())
+  payment Payment? @relation(fields: [paymentId], references: [id])
+  @@index([checkoutRequestId])
+  @@map("mpesa_transactions")
+}
+
+model InventoryTransaction {
+  id        String   @id @default(cuid())
+  branchId  String
+  productId String
+  type      TxType
+  quantity  Int
+  reference String?
+  notes     String?
+  createdAt DateTime @default(now())
+  branch  Branch  @relation(fields: [branchId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
+  @@index([branchId, productId])
+  @@index([createdAt])
+  @@map("inventory_transactions")
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String
+  action    String
+  entity    String
+  entityId  String
+  oldValue  Json?
+  newValue  Json?
+  ipAddress String?
+  createdAt DateTime @default(now())
+  user User @relation(fields: [userId], references: [id])
+  @@index([userId])
+  @@index([entity, entityId])
+  @@map("audit_logs")
+}
+
+model Setting {
+  id         String   @id @default(cuid())
+  pharmacyId String
+  key        String
+  value      String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  pharmacy Pharmacy @relation(fields: [pharmacyId], references: [id])
+  @@unique([pharmacyId, key])
+  @@map("settings")
+}
