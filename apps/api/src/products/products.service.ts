@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
@@ -25,7 +25,6 @@ export class ProductsService {
     search?: string;
     categoryId?: string;
     lowStock?: string;
-    expiringSoon?: string;
     page?: string;
     limit?: string;
   }) {
@@ -33,11 +32,7 @@ export class ProductsService {
     const limit = parseInt(query.limit || '20');
     const skip = (page - 1) * limit;
 
-    const where: any = {
-      pharmacyId,
-      deletedAt: null,
-      isActive: true,
-    };
+    const where: any = { pharmacyId, deletedAt: null, isActive: true };
 
     if (query.search) {
       where.OR = [
@@ -48,9 +43,7 @@ export class ProductsService {
       ];
     }
 
-    if (query.categoryId) {
-      where.categoryId = query.categoryId;
-    }
+    if (query.categoryId) where.categoryId = query.categoryId;
 
     const [products, total] = await Promise.all([
       this.prisma.product.findMany({
@@ -69,14 +62,12 @@ export class ProductsService {
       this.prisma.product.count({ where }),
     ]);
 
-    // Calculate stock totals
     const productsWithStock = products.map((p) => ({
       ...p,
       totalStock: p.batches.reduce((sum, b) => sum + b.quantity, 0),
       isLowStock: p.batches.reduce((sum, b) => sum + b.quantity, 0) <= p.reorderLevel,
     }));
 
-    // Filter low stock if requested
     const filtered = query.lowStock === 'true'
       ? productsWithStock.filter((p) => p.isLowStock)
       : productsWithStock;
@@ -136,10 +127,24 @@ export class ProductsService {
     });
   }
 
+  async addBatch(productId: string, pharmacyId: string, dto: any) {
+    await this.findOne(productId, pharmacyId);
+    return this.prisma.productBatch.create({
+      data: {
+        productId,
+        batchNo: dto.batchNo,
+        expiryDate: new Date(dto.expiryDate),
+        quantity: dto.quantity,
+        costPrice: dto.costPrice,
+        sellingPrice: dto.sellingPrice,
+        supplierId: dto.supplierId || null,
+      },
+    });
+  }
+
   async getExpiryReport(pharmacyId: string, daysAhead = 90) {
     const futureDate = new Date();
     futureDate.setDate(futureDate.getDate() + daysAhead);
-
     return this.prisma.productBatch.findMany({
       where: {
         expiryDate: { lte: futureDate },
@@ -154,11 +159,8 @@ export class ProductsService {
   async getLowStockReport(pharmacyId: string) {
     const products = await this.prisma.product.findMany({
       where: { pharmacyId, deletedAt: null, isActive: true },
-      include: {
-        batches: { where: { quantity: { gt: 0 } } },
-      },
+      include: { batches: { where: { quantity: { gt: 0 } } } },
     });
-
     return products
       .map((p) => ({
         ...p,

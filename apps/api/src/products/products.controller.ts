@@ -47,6 +47,12 @@ export class ProductsController {
     return this.productsService.findOne(id, user.pharmacyId);
   }
 
+  @Post(':id/batches')
+  @Roles(Role.ADMIN, Role.PHARMACIST)
+  addBatch(@Param('id') id: string, @Body() dto: any, @CurrentUser() user: any) {
+    return this.productsService.addBatch(id, user.pharmacyId, dto);
+  }
+
   @Put(':id')
   @Roles(Role.ADMIN, Role.PHARMACIST)
   update(@Param('id') id: string, @Body() dto: UpdateProductDto, @CurrentUser() user: any) {
