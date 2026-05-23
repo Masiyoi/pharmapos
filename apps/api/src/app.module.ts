@@ -6,6 +6,7 @@ import { UsersModule } from './users/users.module';
 import { ProductsModule } from './products/products.module';
 import { SalesModule } from './sales/sales.module';
 import { MpesaModule } from './mpesa/mpesa.module';
+import { SuppliersModule } from './suppliers/suppliers.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { MpesaModule } from './mpesa/mpesa.module';
     ProductsModule,
     SalesModule,
     MpesaModule,
+    SuppliersModule,
   ],
 })
 export class AppModule {}
