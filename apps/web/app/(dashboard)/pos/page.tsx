@@ -5,6 +5,7 @@ import { api } from '@/lib/api';
 import { formatKES } from '@/lib/utils';
 import { Search, Plus, Minus, Trash2, ShoppingCart, CreditCard, Banknote, Smartphone } from 'lucide-react';
 import MpesaModal from './MpesaModal';
+import ReceiptModal from '@/components/receipt/ReceiptModal';
 
 interface CartItem {
   productId: string;
@@ -20,9 +21,9 @@ export default function POSPage() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'MPESA' | 'CARD'>('CASH');
   const [amountPaid, setAmountPaid] = useState('');
-  const [receipt, setReceipt] = useState<any>(null);
   const [showMpesa, setShowMpesa] = useState(false);
-  const [pendingSale, setPendingSale] = useState<any>(null);
+  const [showReceipt, setShowReceipt] = useState(false);
+  const [completedSale, setCompletedSale] = useState<any>(null);
 
   const { data: productsData } = useQuery({
     queryKey: ['products', search],
@@ -35,10 +36,11 @@ export default function POSPage() {
     mutationFn: (saleData: any) => api.post('/sales', saleData).then(r => r.data),
     onSuccess: (data) => {
       if (paymentMethod === 'MPESA') {
-        setPendingSale(data);
+        setCompletedSale(data);
         setShowMpesa(true);
       } else {
-        setReceipt(data);
+        setCompletedSale(data);
+        setShowReceipt(true);
         setCart([]);
         setAmountPaid('');
       }
@@ -82,7 +84,6 @@ export default function POSPage() {
   const checkout = () => {
     if (cart.length === 0) return;
     if (paymentMethod !== 'MPESA' && Number(amountPaid) < total) return;
-
     saleMutation.mutate({
       items: cart.map(i => ({ productId: i.productId, quantity: i.quantity, unitPrice: i.unitPrice })),
       paymentMethod,
@@ -92,44 +93,36 @@ export default function POSPage() {
 
   const onMpesaSuccess = (mpesaCode: string) => {
     setShowMpesa(false);
-    setReceipt({ ...pendingSale, mpesaCode });
+    setCompletedSale((prev: any) => ({ ...prev, mpesaCode }));
+    setShowReceipt(true);
     setCart([]);
     setAmountPaid('');
-    setPendingSale(null);
   };
 
-  if (receipt) {
-    return (
-      <div className="max-w-sm mx-auto bg-white rounded-2xl shadow p-6 text-center mt-8">
-        <div className="text-5xl mb-3">✅</div>
-        <h2 className="text-xl font-bold mb-1">Sale Complete!</h2>
-        <p className="text-gray-500 text-sm mb-2">Receipt: <span className="font-mono font-semibold">{receipt.receiptNo}</span></p>
-        {receipt.mpesaCode && (
-          <p className="text-green-600 text-sm font-semibold mb-2">M-Pesa: {receipt.mpesaCode}</p>
-        )}
-        <div className="bg-gray-50 rounded-xl p-4 text-left space-y-2 mb-6 text-sm">
-          <div className="flex justify-between"><span className="text-gray-500">Total</span><span className="font-semibold">{formatKES(receipt.totalAmount)}</span></div>
-          <div className="flex justify-between"><span className="text-gray-500">Paid</span><span className="font-semibold">{formatKES(receipt.amountPaid)}</span></div>
-          {Number(receipt.change) > 0 && (
-            <div className="flex justify-between border-t pt-2"><span className="text-gray-500">Change</span><span className="font-bold text-emerald-600">{formatKES(receipt.change)}</span></div>
-          )}
-        </div>
-        <button onClick={() => setReceipt(null)} className="w-full bg-emerald-600 text-white py-3 rounded-xl font-semibold hover:bg-emerald-700">
-          New Sale
-        </button>
-      </div>
-    );
-  }
+  const closeReceipt = () => {
+    setShowReceipt(false);
+    setCompletedSale(null);
+  };
 
   return (
     <>
-      {showMpesa && pendingSale && (
+      {showMpesa && completedSale && (
         <MpesaModal
           amount={total}
-          saleId={pendingSale.id}
-          receiptNo={pendingSale.receiptNo}
+          saleId={completedSale.id}
+          receiptNo={completedSale.receiptNo}
           onSuccess={onMpesaSuccess}
-          onCancel={() => { setShowMpesa(false); setReceipt(pendingSale); setCart([]); }}
+          onCancel={() => {
+            setShowMpesa(false);
+            setShowReceipt(true);
+          }}
+        />
+      )}
+
+      {showReceipt && completedSale && (
+        <ReceiptModal
+          sale={completedSale}
+          onClose={closeReceipt}
         />
       )}
 
