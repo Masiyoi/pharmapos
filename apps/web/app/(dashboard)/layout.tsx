@@ -1,13 +1,20 @@
 'use client';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { useAuthStore } from '@/store/auth.store';
 import {
-  ShoppingCart, Package, BarChart3, Users,
-  Truck, LogOut, Menu, X, Pill
+  Shield,
+  ShoppingCart,
+  Package,
+  BarChart3,
+  Users,
+  Truck,
+  LogOut,
+  Menu,
+  X,
+  Pill,
 } from 'lucide-react';
-import { useState } from 'react';
 import { cn } from '@/lib/utils';
 
 const navItems = [
@@ -15,6 +22,7 @@ const navItems = [
   { href: '/inventory', icon: Package,      label: 'Inventory'    },
   { href: '/reports',   icon: BarChart3,    label: 'Reports'      },
   { href: '/customers', icon: Users,        label: 'Customers'    },
+  { href: '/users', icon: Shield, label: 'Staff' },
   { href: '/suppliers', icon: Truck,        label: 'Suppliers'    },
 ];
 
