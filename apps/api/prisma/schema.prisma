@@ -408,3 +408,47 @@ model Setting {
   @@unique([pharmacyId, key])
   @@map("settings")
 }
+
+model RxPrescription {
+  id               String             @id @default(cuid())
+  rxCode           String             @unique
+  pharmacyId       String
+  customerId       String?
+  patientName      String
+  patientPhone     String?
+  patientAge       String?
+  patientGender    String?
+  doctorName       String?
+  doctorSpecialty  String?
+  facilityName     String?
+  labRecommendations String?
+  issuedDate       DateTime
+  expiryDate       DateTime?
+  status           PrescriptionStatus @default(PENDING)
+  allergies        String?
+  notes            String?
+  dispensedBy      String?
+  dispensedAt      DateTime?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  items            RxPrescriptionItem[]
+
+  @@index([pharmacyId])
+  @@map("rx_prescriptions")
+}
+
+model RxPrescriptionItem {
+  id             String          @id @default(cuid())
+  prescriptionId String
+  productName    String
+  dosage         String?
+  frequency      String?
+  duration       String?
+  instruction    String?
+  quantity       Int             @default(1)
+
+  prescription   RxPrescription  @relation(fields: [prescriptionId], references: [id], onDelete: Cascade)
+
+  @@map("rx_prescription_items")
+}
