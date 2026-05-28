@@ -184,7 +184,7 @@ export class ReportsService {
 
   // ─── Monthly Summary ─────────────────────────────────────────────────────
   async getMonthlySummary(pharmacyId: string, months = 6) {
-    const result = [];
+    const result: Array<{ month: string; revenue: number; vat: number; transactions: number }> = [];
     for (let i = months - 1; i >= 0; i--) {
       const d = new Date();
       d.setMonth(d.getMonth() - i);

@@ -9,6 +9,7 @@ import { MpesaModule } from './mpesa/mpesa.module';
 import { SuppliersModule } from './suppliers/suppliers.module';
 import { CustomersModule } from './customers/customers.module';
 import { ReportsModule } from './reports/reports.module';
+import { BranchesModule } from './branches/branches.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { ReportsModule } from './reports/reports.module';
     SuppliersModule,
     CustomersModule,
     ReportsModule,
+    BranchesModule,
   ],
 })
 export class AppModule {}
