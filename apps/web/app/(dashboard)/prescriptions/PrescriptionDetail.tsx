@@ -1,4 +1,8 @@
 'use client';
+import { useRef } from 'react';
+import { useReactToPrint } from 'react-to-print';
+import { useAuthStore } from '@/store/auth.store';
+import PrescriptionPrint from '@/components/receipt/PrescriptionPrint';
 
 const STATUS_STYLE: Record<string, { bg: string; color: string }> = {
   PENDING:   { bg: '#fef9c3', color: '#854d0e' },
@@ -14,7 +18,21 @@ export default function PrescriptionDetail({ prescription: rx, onClose, onDispen
   onEdit: () => void;
   dispensing?: boolean;
 }) {
+  const { user } = useAuthStore();
+  const printRef = useRef<HTMLDivElement>(null);
   const statusCfg = STATUS_STYLE[rx.status] || STATUS_STYLE.PENDING;
+
+  const handlePrint = useReactToPrint({
+    contentRef: printRef,
+    documentTitle: `${rx.rxCode} - ${rx.patientName}`,
+    pageStyle: `
+      @page { size: A4; margin: 0; }
+      @media print {
+        body { margin: 0; }
+        .rx-print-sheet { width: 210mm !important; min-height: 297mm !important; }
+      }
+    `,
+  });
 
   return (
     <div style={{
@@ -23,9 +41,23 @@ export default function PrescriptionDetail({ prescription: rx, onClose, onDispen
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       zIndex: 50, padding: '1rem',
     }}>
+      {/* Hidden print template */}
+      <div style={{ position: 'absolute', left: '-9999px', top: 0 }}>
+        <PrescriptionPrint
+          ref={printRef}
+          prescription={rx}
+          pharmacy={{
+            name: user?.pharmacy?.name || 'PharmaPos Pharmacy',
+            address: user?.pharmacy?.address || 'Nairobi, Kenya',
+            phone: user?.pharmacy?.phone || '',
+            licenseNo: user?.pharmacy?.licenseNo,
+          }}
+        />
+      </div>
+
       <div style={{
         background: 'white', borderRadius: '20px', width: '100%',
-        maxWidth: '620px', maxHeight: '88vh', overflow: 'hidden',
+        maxWidth: '640px', maxHeight: '90vh', overflow: 'hidden',
         display: 'flex', flexDirection: 'column',
         boxShadow: '0 25px 50px -12px rgb(0 0 0 / 0.3)',
       }}>
@@ -63,29 +95,30 @@ export default function PrescriptionDetail({ prescription: rx, onClose, onDispen
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '1.5rem' }}>
             <div style={{ background: '#f9f8f6', borderRadius: '12px', padding: '1rem', border: '1px solid #f2f1ef' }}>
               <p style={{ fontSize: '0.6875rem', fontWeight: 700, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.625rem' }}>👤 Patient</p>
-              <p style={{ fontWeight: 700, color: '#1c1917', fontSize: '0.9375rem' }}>{rx.patientName}</p>
-              {rx.patientPhone && <p style={{ fontSize: '0.8125rem', color: '#78716c', marginTop: '2px' }}>📞 {rx.patientPhone}</p>}
-              {rx.patientAge && <p style={{ fontSize: '0.8125rem', color: '#78716c' }}>Age: {rx.patientAge} · {rx.patientGender}</p>}
+              <p style={{ fontWeight: 700, color: '#1c1917', fontSize: '0.9375rem', margin: 0 }}>{rx.patientName}</p>
+              {rx.patientPhone && <p style={{ fontSize: '0.8125rem', color: '#78716c', margin: '2px 0 0' }}>📞 {rx.patientPhone}</p>}
+              {rx.patientAge && <p style={{ fontSize: '0.8125rem', color: '#78716c', margin: '2px 0 0' }}>Age: {rx.patientAge} · {rx.patientGender}</p>}
               {rx.allergies && (
                 <div style={{ marginTop: '0.625rem', padding: '0.5rem 0.75rem', background: '#fef9c3', borderRadius: '8px', border: '1px solid #fde68a' }}>
-                  <p style={{ fontSize: '0.75rem', color: '#854d0e', fontWeight: 600 }}>⚠️ Allergies: {rx.allergies}</p>
+                  <p style={{ fontSize: '0.75rem', color: '#854d0e', fontWeight: 600, margin: 0 }}>⚠️ {rx.allergies}</p>
                 </div>
               )}
             </div>
 
             <div style={{ background: '#f9f8f6', borderRadius: '12px', padding: '1rem', border: '1px solid #f2f1ef' }}>
               <p style={{ fontSize: '0.6875rem', fontWeight: 700, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.625rem' }}>🩺 Doctor</p>
-              <p style={{ fontWeight: 700, color: '#1c1917', fontSize: '0.9375rem' }}>{rx.doctorName || 'Not specified'}</p>
-              {rx.doctorSpecialty && <p style={{ fontSize: '0.8125rem', color: '#78716c', marginTop: '2px' }}>{rx.doctorSpecialty}</p>}
-              {rx.facilityName && <p style={{ fontSize: '0.8125rem', color: '#78716c' }}>🏥 {rx.facilityName}</p>}
-              {rx.labRecommendations && <p style={{ fontSize: '0.8125rem', color: '#2563eb', marginTop: '4px' }}>🔬 {rx.labRecommendations}</p>}
+              <p style={{ fontWeight: 700, color: '#1c1917', fontSize: '0.9375rem', margin: 0 }}>{rx.doctorName || 'Not specified'}</p>
+              {rx.doctorSpecialty && <p style={{ fontSize: '0.8125rem', color: '#78716c', margin: '2px 0 0' }}>{rx.doctorSpecialty}</p>}
+              {rx.facilityName && <p style={{ fontSize: '0.8125rem', color: '#78716c', margin: '2px 0 0' }}>🏥 {rx.facilityName}</p>}
+              {rx.labRecommendations && <p style={{ fontSize: '0.8125rem', color: '#2563eb', margin: '4px 0 0' }}>🔬 {rx.labRecommendations}</p>}
             </div>
           </div>
 
-          {/* Drugs table */}
+          {/* Drugs */}
           <div style={{ marginBottom: '1.25rem' }}>
-            <p style={{ fontSize: '0.6875rem', fontWeight: 700, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.75rem' }}>💊 Prescribed Drugs ({rx.items?.length})</p>
-
+            <p style={{ fontSize: '0.6875rem', fontWeight: 700, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.75rem' }}>
+              💊 Prescribed Drugs ({rx.items?.length})
+            </p>
             <div style={{ border: '1px solid #e8e6e3', borderRadius: '12px', overflow: 'hidden' }}>
               <div style={{
                 display: 'grid', gridTemplateColumns: '1.5fr 0.8fr 1fr 0.8fr 1fr 60px',
@@ -101,6 +134,7 @@ export default function PrescriptionDetail({ prescription: rx, onClose, onDispen
                   display: 'grid', gridTemplateColumns: '1.5fr 0.8fr 1fr 0.8fr 1fr 60px',
                   padding: '0.875rem 1rem', alignItems: 'center',
                   borderBottom: i < rx.items.length - 1 ? '1px solid #f2f1ef' : 'none',
+                  background: i % 2 === 0 ? 'white' : '#fafaf9',
                 }}>
                   <p style={{ fontWeight: 700, color: '#1c1917', fontSize: '0.9rem', margin: 0 }}>{item.productName}</p>
                   <p style={{ color: '#57534e', fontSize: '0.85rem', margin: 0 }}>{item.dosage || '—'}</p>
@@ -115,17 +149,16 @@ export default function PrescriptionDetail({ prescription: rx, onClose, onDispen
 
           {/* Notes */}
           {rx.notes && (
-            <div style={{ background: '#f9f8f6', borderRadius: '10px', padding: '0.875rem', border: '1px solid #f2f1ef' }}>
-              <p style={{ fontSize: '0.6875rem', fontWeight: 700, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.375rem' }}>📝 Doctor's Notes</p>
-              <p style={{ color: '#44403c', fontSize: '0.875rem' }}>{rx.notes}</p>
+            <div style={{ background: '#f9f8f6', borderRadius: '10px', padding: '0.875rem', border: '1px solid #f2f1ef', marginBottom: '0.75rem' }}>
+              <p style={{ fontSize: '0.6875rem', fontWeight: 700, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.375rem' }}>📝 Notes</p>
+              <p style={{ color: '#44403c', fontSize: '0.875rem', margin: 0 }}>{rx.notes}</p>
             </div>
           )}
 
-          {/* Dispensed info */}
           {rx.status === 'DISPENSED' && rx.dispensedAt && (
-            <div style={{ background: '#f0fdf4', borderRadius: '10px', padding: '0.875rem', border: '1px solid #bbf7d0', marginTop: '0.75rem' }}>
-              <p style={{ color: '#15803d', fontSize: '0.875rem', fontWeight: 600 }}>
-                ✅ Dispensed on {new Date(rx.dispensedAt).toLocaleDateString('en-KE', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+            <div style={{ background: '#f0fdf4', borderRadius: '10px', padding: '0.875rem', border: '1px solid #bbf7d0' }}>
+              <p style={{ color: '#15803d', fontSize: '0.875rem', fontWeight: 600, margin: 0 }}>
+                ✅ Dispensed on {new Date(rx.dispensedAt).toLocaleDateString('en-KE', { day: 'numeric', month: 'long', year: 'numeric' })}
               </p>
             </div>
           )}
@@ -134,20 +167,39 @@ export default function PrescriptionDetail({ prescription: rx, onClose, onDispen
         {/* Footer */}
         <div style={{
           padding: '1rem 1.5rem', borderTop: '1px solid #f2f1ef',
-          background: '#f9f8f6', display: 'flex', gap: '0.75rem',
-          borderRadius: '0 0 20px 20px',
+          background: '#f9f8f6', display: 'flex', gap: '0.625rem',
+          borderRadius: '0 0 20px 20px', flexWrap: 'wrap',
         }}>
           <button onClick={onClose}
-            style={{ flex: 1, padding: '0.625rem', borderRadius: '10px', border: '1px solid #e8e6e3', background: 'white', cursor: 'pointer', fontWeight: 500, fontSize: '0.875rem' }}>
+            style={{ padding: '0.625rem 1rem', borderRadius: '10px', border: '1px solid #e8e6e3', background: 'white', cursor: 'pointer', fontWeight: 500, fontSize: '0.875rem', color: '#44403c' }}>
             Close
           </button>
           <button onClick={onEdit}
-            style={{ flex: 1, padding: '0.625rem', borderRadius: '10px', border: '1px solid #e8e6e3', background: 'white', cursor: 'pointer', fontWeight: 500, fontSize: '0.875rem' }}>
+            style={{ padding: '0.625rem 1rem', borderRadius: '10px', border: '1px solid #e8e6e3', background: 'white', cursor: 'pointer', fontWeight: 500, fontSize: '0.875rem', color: '#44403c' }}>
             ✏️ Edit
           </button>
+
+          {/* Print PDF button */}
+          <button
+            onClick={() => handlePrint()}
+            style={{
+              padding: '0.625rem 1.125rem', borderRadius: '10px',
+              border: 'none', background: '#1d4ed8', color: 'white',
+              cursor: 'pointer', fontWeight: 700, fontSize: '0.875rem',
+              display: 'flex', alignItems: 'center', gap: '0.375rem',
+              boxShadow: '0 1px 3px rgb(0 0 0 / 0.15)',
+            }}>
+            🖨️ Print PDF
+          </button>
+
           {rx.status === 'PENDING' && (
             <button onClick={onDispense} disabled={dispensing}
-              style={{ flex: 2, padding: '0.625rem', borderRadius: '10px', border: 'none', background: dispensing ? '#86efac' : '#16a34a', color: 'white', cursor: dispensing ? 'not-allowed' : 'pointer', fontWeight: 700, fontSize: '0.875rem' }}>
+              style={{
+                flex: 1, padding: '0.625rem 1rem', borderRadius: '10px',
+                border: 'none', background: dispensing ? '#86efac' : '#16a34a',
+                color: 'white', cursor: dispensing ? 'not-allowed' : 'pointer',
+                fontWeight: 700, fontSize: '0.875rem', minWidth: '140px',
+              }}>
               {dispensing ? 'Dispensing...' : '✅ Mark as Dispensed'}
             </button>
           )}

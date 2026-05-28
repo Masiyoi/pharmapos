@@ -2,6 +2,14 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { api } from '@/lib/api';
 
+interface Pharmacy {
+  id: string;
+  name: string;
+  address: string;
+  phone: string;
+  licenseNo?: string;
+}
+
 interface User {
   id: string;
   email: string;
@@ -10,6 +18,7 @@ interface User {
   role: string;
   pharmacyId: string;
   branchId?: string;
+  pharmacy?: Pharmacy;
 }
 
 interface AuthState {
@@ -33,7 +42,14 @@ export const useAuthStore = create<AuthState>()(
         try {
           const { data } = await api.post('/auth/login', { email, password });
           localStorage.setItem('accessToken', data.accessToken);
-          set({ user: data.user, accessToken: data.accessToken, isLoading: false });
+          set({
+            user: {
+              ...data.user,
+              pharmacy: data.user.pharmacy || null,
+            },
+            accessToken: data.accessToken,
+            isLoading: false,
+          });
         } catch (err) {
           set({ isLoading: false });
           throw err;
