@@ -1,5 +1,5 @@
 'use client';
-import { useForm } from 'react-hook-form';
+import { useForm, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useMutation, useQuery } from '@tanstack/react-query';
@@ -17,6 +17,7 @@ const schema = z.object({
   reorderLevel:        z.coerce.number().min(0).default(10),
   requiresPrescription:z.boolean().default(false),
   description:         z.string().optional(),
+  sku:                 z.string().optional(),
   // Initial stock fields (only used on create)
   initialStock:        z.coerce.number().min(0).default(0),
   batchNo:             z.string().optional(),
@@ -73,7 +74,7 @@ export default function ProductForm({ product, onClose, onSuccess }: Props) {
   const supplierList = Array.isArray(suppliers) ? suppliers : [];
 
   const { register, handleSubmit, watch, formState: { errors } } = useForm<FormData>({
-    resolver: zodResolver(schema),
+    resolver: zodResolver(schema) as Resolver<FormData>,
     defaultValues: product ? {
       name:                product.name,
       genericName:         product.genericName || '',
@@ -98,22 +99,28 @@ export default function ProductForm({ product, onClose, onSuccess }: Props) {
 
   const mutation = useMutation({
     mutationFn: async (data: FormData) => {
+      // Strip batch/stock fields — they are NOT part of the product DTO
+      const { initialStock, batchNo, expiryDate, supplierId, ...productData } = data as any;
+
       if (isEdit) {
-        return api.put(`/products/${product.id}`, data).then(r => r.data);
+        return api.put(`/products/${product.id}`, productData).then(r => r.data);
       }
-      // Create product
-      const created = await api.post('/products', data).then(r => r.data);
-      // If initial stock > 0, create a batch
-      if (data.initialStock > 0) {
+
+      // 1. Create the product (only product fields)
+      const created = await api.post('/products', productData).then(r => r.data);
+
+      // 2. If opening stock was set, create the initial batch separately
+      if (Number(initialStock) > 0) {
         await api.post(`/products/${created.id}/batches`, {
-          batchNo:     data.batchNo || `OPENING-${Date.now()}`,
-          expiryDate:  data.expiryDate || '2030-12-31',
-          quantity:    data.initialStock,
-          costPrice:   data.costPrice,
-          sellingPrice:data.sellingPrice,
-          supplierId:  data.supplierId || undefined,
+          batchNo:      batchNo || `OPENING-${Date.now()}`,
+          expiryDate:   expiryDate || '2030-12-31',
+          quantity:     Number(initialStock),
+          costPrice:    data.costPrice,
+          sellingPrice: data.sellingPrice,
+          supplierId:   supplierId || undefined,
         });
       }
+
       return created;
     },
     onSuccess,

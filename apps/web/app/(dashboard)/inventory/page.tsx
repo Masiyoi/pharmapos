@@ -6,6 +6,32 @@ import { formatKES } from '@/lib/utils';
 import ProductForm from './ProductForm';
 import BatchForm from './BatchForm';
 
+function getProductIcon(unit: string, name: string): string {
+  const u = (unit || '').toLowerCase();
+  const n = (name || '').toLowerCase();
+  if (n.includes('condom'))                         return '🛡️';
+  if (n.includes('glove'))                          return '🧤';
+  if (n.includes('mask'))                           return '😷';
+  if (n.includes('bandage') || n.includes('gauze')) return '🩹';
+  if (n.includes('insulin'))                        return '💉';
+  if (n.includes('vaccine'))                        return '💉';
+  if (n.includes('vitamin') || n.includes('supplement')) return '🌿';
+  if (n.includes('eye') || n.includes('optic'))     return '👁️';
+  if (n.includes('ear'))                            return '👂';
+  if (n.includes('cream') || n.includes('lotion') || n.includes('gel')) return '🧴';
+  if (n.includes('spray') || n.includes('inhaler')) return '💨';
+  if (n.includes('powder'))                         return '🫙';
+  if (u === 'tabs' || u === 'tab' || u === 'caps' || u === 'cap' || u === 'strip') return '💊';
+  if (u === 'sachet')   return '🫙';
+  if (u === 'ml' || u === 'bottle' || u === 'syrup') return '🍶';
+  if (u === 'vial' || u === 'ampoule') return '💉';
+  if (u === 'tube')     return '🧴';
+  if (u === 'g' || u === 'mg') return '⚗️';
+  if (u === 'pcs')      return '📦';
+  return '💊';
+}
+
+
 type Tab = 'products' | 'expiry' | 'lowstock';
 
 const badge = (type: 'green' | 'yellow' | 'red' | 'orange', text: string) => (

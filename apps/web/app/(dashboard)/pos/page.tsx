@@ -7,6 +7,48 @@ import { Search, Plus, Minus, Trash2, ShoppingCart, CreditCard, Banknote, Smartp
 import MpesaModal from './MpesaModal';
 import ReceiptModal from '@/components/receipt/ReceiptModal';
 
+// ─── Product icon by unit type ───────────────────────────────────────────────
+function getProductIcon(unit: string, name: string): string {
+  const u = (unit || '').toLowerCase();
+  const n = (name || '').toLowerCase();
+
+  // Specific name-based overrides first
+  if (n.includes('condom'))                        return '🛡️';
+  if (n.includes('glove'))                         return '🧤';
+  if (n.includes('mask'))                          return '😷';
+  if (n.includes('bandage') || n.includes('gauze'))return '🩹';
+  if (n.includes('insulin'))                       return '💉';
+  if (n.includes('vaccine') || n.includes('vacc')) return '💉';
+  if (n.includes('oxygen'))                        return '🫁';
+  if (n.includes('vitamin'))                       return '🌿';
+  if (n.includes('supplement'))                    return '🌿';
+  if (n.includes('eye') || n.includes('optic'))    return '👁️';
+  if (n.includes('ear'))                           return '👂';
+  if (n.includes('cream') || n.includes('lotion')) return '🧴';
+  if (n.includes('gel'))                           return '🧴';
+  if (n.includes('spray') || n.includes('inhaler'))return '💨';
+  if (n.includes('suppository'))                   return '💊';
+  if (n.includes('patch'))                         return '🩹';
+  if (n.includes('powder'))                        return '🫙';
+  if (n.includes('antib'))                         return '🦠';
+
+  // Unit-based icons
+  if (u === 'tabs'  || u === 'tab')    return '💊';
+  if (u === 'caps'  || u === 'cap')    return '💊';
+  if (u === 'strip')                   return '💊';
+  if (u === 'sachet')                  return '🫙';
+  if (u === 'ml'    || u === 'syrup')  return '🍶';
+  if (u === 'bottle')                  return '🍶';
+  if (u === 'vial')                    return '💉';
+  if (u === 'ampoule')                 return '💉';
+  if (u === 'tube')                    return '🧴';
+  if (u === 'g'     || u === 'mg')     return '⚗️';
+  if (u === 'pcs'   || u === 'piece')  return '📦';
+
+  return '💊'; // default
+}
+
+
 interface CartItem {
   productId: string;
   productName: string;
@@ -146,7 +188,7 @@ export default function POSPage() {
               return (
                 <button key={p.id} onClick={() => addToCart(p)} disabled={stock === 0}
                   className="bg-white border border-gray-200 rounded-xl p-3 text-left hover:border-emerald-400 hover:shadow-md transition-all disabled:opacity-40 disabled:cursor-not-allowed">
-                  <div className="text-2xl mb-2">💊</div>
+                  <div className="text-2xl mb-2">{getProductIcon(p.unit, p.name)}</div>
                   <p className="text-sm font-semibold text-gray-800 line-clamp-2">{p.name}</p>
                   <p className="text-xs text-gray-400 mt-1">{p.genericName || p.unit}</p>
                   <div className="flex items-center justify-between mt-2">

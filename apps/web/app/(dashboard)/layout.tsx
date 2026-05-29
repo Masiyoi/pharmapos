@@ -6,11 +6,11 @@ import { useAuthStore } from '@/store/auth.store';
 
 const NAV = [
   { href: '/pos',       icon: '🛒', label: 'POS Checkout'  },
+  { href: '/prescriptions', icon: '📋', label: 'Prescriptions' },
   { href: '/inventory', icon: '📦', label: 'Inventory'     },
   { href: '/reports',   icon: '📊', label: 'Reports'       },
   { href: '/customers', icon: '👥', label: 'Customers'     },
   { href: '/users',     icon: '🛡️', label: 'Staff'         },
-  { href: '/prescriptions', icon: '📋', label: 'Prescriptions' },
   { href: '/branches',  icon: '🏪', label: 'Branches'     },
   { href: '/procurement', icon: '🛒', label: 'Procurement'  },
   { href: '/suppliers', icon: '🚚', label: 'Suppliers'     },
