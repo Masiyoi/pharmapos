@@ -37,4 +37,39 @@ export class ReportsController {
   getMonthlySummary(@Query('months') months: string, @CurrentUser() user: any) {
     return this.reportsService.getMonthlySummary(user.pharmacyId, parseInt(months || '6'));
   }
+
+  @Get('profit-analysis')
+  getProfitAnalysis(@Query('days') days: string, @CurrentUser() user: any) {
+  return this.reportsService.getProductProfitAnalysis(
+    user.pharmacyId,
+    parseInt(days || '30'),
+  );
 }
+  @Get('sales-detail')
+getSalesDetail(
+  @Query('from') from: string,
+  @Query('to') to: string,
+  @CurrentUser() user: any,
+) {
+  return this.reportsService.getSalesDetail(user.pharmacyId, from, to);
+}
+
+@Get('staff-sales')
+getStaffSales(
+  @Query('from') from: string,
+  @Query('to') to: string,
+  @CurrentUser() user: any,
+) {
+  return this.reportsService.getStaffSalesReport(user.pharmacyId, from, to);
+}
+
+@Get('branch-sales')
+getBranchSales(
+  @Query('from') from: string,
+  @Query('to') to: string,
+  @CurrentUser() user: any,
+) {
+  return this.reportsService.getBranchSalesReport(user.pharmacyId, from, to);
+}
+}
+

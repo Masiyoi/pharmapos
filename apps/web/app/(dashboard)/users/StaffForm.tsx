@@ -105,6 +105,21 @@ export default function StaffForm({ user, onClose, onSuccess }: {
               className="w-full px-3 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-sm" />
           </div>
 
+          {/* Branch selector - add after Phone field */}
+<div>
+  <label className="text-sm font-medium text-gray-700 block mb-1">Branch</label>
+  <select {...register('branchId')}
+    className="w-full px-3 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-sm bg-white">
+    <option value="">All Branches / No specific branch</option>
+    {(Array.isArray(branches) ? branches : branches?.data || []).map((b: any) => (
+      <option key={b.id} value={b.id}>{b.name}</option>
+    ))}
+  </select>
+  <p className="text-xs text-gray-400 mt-1">
+    Leave blank for admin staff who manage all branches
+  </p>
+</div>
+
           {!isEdit && (
             <div>
               <label className="text-sm font-medium text-gray-700 block mb-1">Password *</label>

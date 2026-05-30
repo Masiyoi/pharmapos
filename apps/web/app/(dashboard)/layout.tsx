@@ -5,15 +5,17 @@ import Link from 'next/link';
 import { useAuthStore } from '@/store/auth.store';
 
 const NAV = [
-  { href: '/pos',       icon: '🛒', label: 'POS Checkout'  },
+  { href: '/pos',           icon: '🛒', label: 'POS Checkout'  },
   { href: '/prescriptions', icon: '📋', label: 'Prescriptions' },
-  { href: '/inventory', icon: '📦', label: 'Inventory'     },
-  { href: '/reports',   icon: '📊', label: 'Reports'       },
-  { href: '/customers', icon: '👥', label: 'Customers'     },
-  { href: '/users',     icon: '🛡️', label: 'Staff'         },
-  { href: '/branches',  icon: '🏪', label: 'Branches'     },
-  { href: '/procurement', icon: '🛒', label: 'Procurement'  },
-  { href: '/suppliers', icon: '🚚', label: 'Suppliers'     },
+  { href: '/inventory',     icon: '📦', label: 'Inventory'      },
+  { href: '/analytics',     icon: '📊', label: 'Analytics'      }, 
+  { href: '/reports',       icon: '🖨️', label: 'Reports'        },
+  { href: '/activities',    icon: '📈', label: 'Activities'     },
+  { href: '/customers',     icon: '👥', label: 'Customers'      },
+  { href: '/users',         icon: '🛡️', label: 'Staff'          },
+  { href: '/branches',      icon: '🏪', label: 'Branches'       },
+  { href: '/procurement',   icon: '🛒', label: 'Procurement'    },
+  { href: '/suppliers',     icon: '🚚', label: 'Suppliers'      },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {

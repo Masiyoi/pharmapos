@@ -210,4 +210,204 @@ export class ReportsService {
     }
     return result;
   }
+
+// ─── Product Profit Analysis ──────────────────────────────────────────────
+async getProductProfitAnalysis(pharmacyId: string, days = 30) {
+  const start = new Date();
+  start.setDate(start.getDate() - days);
+  start.setHours(0, 0, 0, 0);
+
+  const items = await this.prisma.saleItem.findMany({
+    where: {
+      sale: {
+        branch: { pharmacyId },
+        status: 'COMPLETED',
+        createdAt: { gte: start },
+      },
+    },
+    select: {
+      productId: true,
+      productName: true,
+      quantity: true,
+      unitPrice: true,
+      costPrice: true,
+      total: true,
+      discount: true,
+    },
+  });
+
+  const map: Record<string, {
+    productId: string;
+    name: string;
+    qtySold: number;
+    avgSellingPrice: number;
+    currentBaseCost: number;
+    totalRevenue: number;
+    totalCost: number;
+    profitMade: number;
+  }> = {};
+
+  for (const item of items) {
+    const cost = Number(item.costPrice);
+    const revenue = Number(item.total);
+    const totalCost = cost * item.quantity;
+
+    if (!map[item.productId]) {
+      map[item.productId] = {
+        productId: item.productId,
+        name: item.productName,
+        qtySold: 0,
+        avgSellingPrice: 0,
+        currentBaseCost: cost,
+        totalRevenue: 0,
+        totalCost: 0,
+        profitMade: 0,
+      };
+    }
+
+    map[item.productId].qtySold += item.quantity;
+    map[item.productId].totalRevenue += revenue;
+    map[item.productId].totalCost += totalCost;
+    map[item.productId].profitMade += revenue - totalCost;
+  }
+
+  // Calculate avg selling price per unit
+  const rows = Object.values(map).map(r => ({
+    ...r,
+    avgSellingPrice: r.qtySold > 0 ? r.totalRevenue / r.qtySold : 0,
+    marginPct: r.totalRevenue > 0
+      ? ((r.profitMade / r.totalRevenue) * 100)
+      : 0,
+  })).sort((a, b) => b.totalRevenue - a.totalRevenue);
+
+  const totals = rows.reduce(
+    (acc, r) => ({
+      totalRevenue: acc.totalRevenue + r.totalRevenue,
+      totalCost: acc.totalCost + r.totalCost,
+      netProfit: acc.netProfit + r.profitMade,
+    }),
+    { totalRevenue: 0, totalCost: 0, netProfit: 0 },
+  );
+
+  return {
+    period: days,
+    totals: {
+      ...totals,
+      marginPct: totals.totalRevenue > 0
+        ? (totals.netProfit / totals.totalRevenue) * 100
+        : 0,
+    },
+    rows,
+  };
+}
+// ─── Detailed Sales List ──────────────────────────────────────────────────
+async getSalesDetail(pharmacyId: string, from: string, to: string) {
+  const start = new Date(from);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(to);
+  end.setHours(23, 59, 59, 999);
+
+  const sales = await this.prisma.sale.findMany({
+    where: {
+      branch: { pharmacyId },
+      status: 'COMPLETED',
+      createdAt: { gte: start, lte: end },
+    },
+    include: {
+      customer: { select: { firstName: true, lastName: true } },
+      user: { select: { firstName: true, lastName: true } },
+      items: { select: { productName: true, quantity: true, unitPrice: true, total: true } }, // ← ADD
+      branch: { select: { name: true } }, // ← ADD
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  return {
+    totalSales: sales.length,
+    totalRevenue: sales.reduce((s, x) => s + Number(x.totalAmount), 0),
+    totalVat: sales.reduce((s, x) => s + Number(x.vatAmount), 0),
+    totalDiscount: sales.reduce((s, x) => s + Number(x.discount), 0),
+    sales,
+  };
+}
+
+// ─── Staff Sales Report ───────────────────────────────────────────────────
+async getStaffSalesReport(pharmacyId: string, from: string, to: string) {
+  const start = new Date(from); start.setHours(0, 0, 0, 0);
+  const end = new Date(to); end.setHours(23, 59, 59, 999);
+
+  const users = await this.prisma.user.findMany({
+    where: { pharmacyId, isActive: true, deletedAt: null },
+    select: { id: true, firstName: true, lastName: true, role: true, branch: { select: { name: true } } },
+  });
+
+  const results = await Promise.all(users.map(async u => {
+    const agg = await this.prisma.sale.aggregate({
+      where: {
+        userId: u.id,
+        branch: { pharmacyId },
+        status: 'COMPLETED',
+        createdAt: { gte: start, lte: end },
+      },
+      _sum: { totalAmount: true },
+      _count: true,
+    });
+    return {
+      userId: u.id,
+      firstName: u.firstName,
+      lastName: u.lastName,
+      role: u.role,
+      totalSales: agg._count,
+      totalRevenue: Number(agg._sum.totalAmount || 0),
+      branchName: u.branch?.name || 'Unassigned', 
+    };
+  }));
+
+  return results.sort((a, b) => b.totalRevenue - a.totalRevenue);
+}
+
+// ─── Branch Sales Report ──────────────────────────────────────────────────
+async getBranchSalesReport(pharmacyId: string, from: string, to: string) {
+  const start = new Date(from); start.setHours(0, 0, 0, 0);
+  const end = new Date(to); end.setHours(23, 59, 59, 999);
+
+  const branches = await this.prisma.branch.findMany({
+    where: { pharmacyId, isActive: true },
+    select: { id: true, name: true },
+  });
+
+  const results = await Promise.all(branches.map(async b => {
+    const itemsAgg = await this.prisma.saleItem.aggregate({
+      where: {
+        sale: {
+          branchId: b.id,
+          status: 'COMPLETED',
+          createdAt: { gte: start, lte: end },
+        },
+      },
+      _sum: { quantity: true },
+    });
+
+    const agg = await this.prisma.sale.aggregate({
+      where: {
+        branchId: b.id,
+        status: 'COMPLETED',
+        createdAt: { gte: start, lte: end },
+      },
+      _sum: { totalAmount: true, vatAmount: true },
+      _count: true,
+    });
+
+    return {
+      branchId: b.id,
+      name: b.name,
+      itemsSold: itemsAgg._sum.quantity || 0,
+      totalSales: agg._count,
+      totalRevenue: Number(agg._sum.totalAmount || 0),
+      totalVat: Number(agg._sum.vatAmount || 0),
+    };
+  }));
+
+  return results.sort((a, b) => b.totalRevenue - a.totalRevenue);
+}
 }

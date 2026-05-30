@@ -1,5 +1,6 @@
 import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
 import { SuppliersService } from './suppliers.service';
+import { SupplierProductsService } from './supplier-products.service';
 import { CreateSupplierDto } from './dto/create-supplier.dto';
 import { UpdateSupplierDto } from './dto/update-supplier.dto';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -11,7 +12,10 @@ import { Role } from '@prisma/client';
 @Controller('suppliers')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class SuppliersController {
-  constructor(private suppliersService: SuppliersService) {}
+  constructor(
+    private suppliersService: SuppliersService,
+    private supplierProductsService: SupplierProductsService,
+  ) {}
 
   @Post()
   @Roles(Role.ADMIN, Role.PHARMACIST)
@@ -41,4 +45,26 @@ export class SuppliersController {
   remove(@Param('id') id: string, @CurrentUser() user: any) {
     return this.suppliersService.remove(id, user.pharmacyId);
   }
+  @Get(':id/products')
+getSupplierProducts(@Param('id') id: string, @CurrentUser() user: any) {
+  return this.supplierProductsService.getBySupplier(id, user.pharmacyId);
+}
+
+@Post(':id/products')
+addSupplierProduct(
+  @Param('id') id: string,
+  @Body() body: { productId: string; quotedPrice: number; notes?: string },
+  @CurrentUser() user: any,
+) {
+  return this.supplierProductsService.upsert(id, user.pharmacyId, body);
+}
+
+@Delete(':id/products/:productId')
+removeSupplierProduct(
+  @Param('id') id: string,
+  @Param('productId') productId: string,
+  @CurrentUser() user: any,
+) {
+  return this.supplierProductsService.remove(id, productId, user.pharmacyId);
+}
 }

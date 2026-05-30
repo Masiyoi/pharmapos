@@ -70,13 +70,19 @@ export class SalesService {
 
         // Find best batch (FIFO - earliest expiry first)
         let batchId = item.batchId;
+        let batchCostPrice = 0;
         if (!batchId) {
           const batch = await tx.productBatch.findFirst({
             where: { productId: item.productId, quantity: { gt: 0 } },
             orderBy: { expiryDate: 'asc' },
           });
           batchId = batch?.id;
-        }
+          batchCostPrice = Number(batch?.costPrice || 0);
+        } else {
+  // batchId was provided — fetch its cost price
+  const batch = await tx.productBatch.findUnique({ where: { id: batchId } }); // ← ADD THIS
+  batchCostPrice = Number(batch?.costPrice || product!.costPrice);             // ← ADD THIS
+}
 
         saleItems.push({
           productId: item.productId,
@@ -84,6 +90,7 @@ export class SalesService {
           productName: product!.name,
           quantity: item.quantity,
           unitPrice: item.unitPrice,
+          costPrice: batchCostPrice,
           vatRate: Number(product!.vatRate),
           vatAmount: itemVat,
           discount: itemDiscount,

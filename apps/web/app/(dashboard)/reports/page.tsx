@@ -4,307 +4,614 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { formatKES } from '@/lib/utils';
 import {
-  AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
-} from 'recharts';
-import {
-  TrendingUp, ShoppingCart, Banknote, Percent,
-  Package, ArrowUpRight, ArrowDownRight, Calendar
+  FileText, Calendar, Users, GitBranch,
+  Package, TrendingUp, Printer, ChevronDown,
+  ShoppingCart, Banknote, BarChart2,
 } from 'lucide-react';
 
-const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
+// ─── Types ────────────────────────────────────────────────────────────────────
+type ReportPeriod = 'daily' | 'weekly' | 'monthly';
 
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function getDateRange(period: ReportPeriod, offset = 0) {
+  const now = new Date();
+  if (period === 'daily') {
+    const d = new Date(now);
+    d.setDate(d.getDate() - offset);
+    const str = d.toISOString().split('T')[0];
+    return { from: str, to: str, label: offset === 0 ? 'Today' : d.toLocaleDateString('en-KE', { day: 'numeric', month: 'short' }) };
+  }
+  if (period === 'weekly') {
+    const end = new Date(now);
+    end.setDate(end.getDate() - offset * 7);
+    const start = new Date(end);
+    start.setDate(start.getDate() - 6);
+    return {
+      from: start.toISOString().split('T')[0],
+      to: end.toISOString().split('T')[0],
+      label: offset === 0 ? 'This Week' : `Week of ${start.toLocaleDateString('en-KE', { day: 'numeric', month: 'short' })}`,
+    };
+  }
+  // monthly
+  const d = new Date(now.getFullYear(), now.getMonth() - offset, 1);
+  const end = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+  return {
+    from: d.toISOString().split('T')[0],
+    to: end.toISOString().split('T')[0],
+    label: d.toLocaleDateString('en-KE', { month: 'long', year: 'numeric' }),
+  };
+}
+
+// ─── Print helper ─────────────────────────────────────────────────────────────
+function printReport(title: string, html: string, pharmacyName = 'PharmaPos') {
+  const win = window.open('', '_blank');
+  if (!win) return;
+  win.document.write(`
+    <!DOCTYPE html><html><head>
+    <title>${title}</title>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body { font-family: Arial, sans-serif; font-size: 12px; color: #111; padding: 32px; }
+      h1 { font-size: 18px; font-weight: 700; color: #15803d; text-align: center; }
+      h2 { font-size: 13px; font-weight: 600; text-align: center; margin-top: 4px; color: #374151; }
+      p.sub { text-align: center; color: #6b7280; font-size: 11px; margin-top: 2px; }
+      hr { border: none; border-top: 1px solid #d1fae5; margin: 16px 0; }
+      table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+      th { background: #f0fdf4; color: #166534; font-size: 11px; font-weight: 700;
+           text-transform: uppercase; padding: 8px 10px; text-align: left; border-bottom: 2px solid #bbf7d0; }
+      td { padding: 7px 10px; border-bottom: 1px solid #f3f4f6; font-size: 12px; }
+      tr:nth-child(even) td { background: #fafafa; }
+      .right { text-align: right; }
+      .bold { font-weight: 700; }
+      .green { color: #16a34a; }
+      .summary { display: flex; gap: 24px; margin: 16px 0; }
+      .stat { flex: 1; background: #f0fdf4; border-radius: 8px; padding: 12px; }
+      .stat-label { font-size: 10px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; }
+      .stat-value { font-size: 16px; font-weight: 700; color: #15803d; margin-top: 2px; }
+      .footer { margin-top: 24px; font-size: 10px; color: #9ca3af; display: flex; justify-content: space-between; }
+      @media print { body { padding: 16px; } }
+    </style>
+    </head><body>
+    <h1>${pharmacyName}</h1>
+    <h2>${title}</h2>
+    ${html}
+    <div class="footer">
+      <span>Printed on: ${new Date().toLocaleString('en-KE')}</span>
+      <span>Page 1 of 1</span>
+    </div>
+    <script>window.onload = () => { window.print(); window.close(); }<\/script>
+    </body></html>
+  `);
+  win.document.close();
+}
+
+// ─── Section Card ─────────────────────────────────────────────────────────────
+function ReportCard({ icon: Icon, title, description, color, children }: {
+  icon: any; title: string; description: string; color: string; children: React.ReactNode;
+}) {
+  const colors: Record<string, string> = {
+    emerald: 'bg-emerald-50 text-emerald-600 border-emerald-100',
+    blue: 'bg-blue-50 text-blue-600 border-blue-100',
+    purple: 'bg-purple-50 text-purple-600 border-purple-100',
+    amber: 'bg-amber-50 text-amber-600 border-amber-100',
+    rose: 'bg-rose-50 text-rose-600 border-rose-100',
+  };
+  return (
+    <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+      <div className="p-5 border-b border-gray-100">
+        <div className="flex items-center gap-3">
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center border ${colors[color]}`}>
+            <Icon size={18} />
+          </div>
+          <div>
+            <h2 className="font-semibold text-gray-900">{title}</h2>
+            <p className="text-xs text-gray-400">{description}</p>
+          </div>
+        </div>
+      </div>
+      <div className="p-5">{children}</div>
+    </div>
+  );
+}
+
+// ─── Main Page ────────────────────────────────────────────────────────────────
 export default function ReportsPage() {
-  const [trendDays, setTrendDays] = useState(30);
+  // Sales report state
+  const [salesPeriod, setSalesPeriod] = useState<ReportPeriod>('daily');
+  const [salesOffset, setSalesOffset] = useState(0);
+  const salesRange = getDateRange(salesPeriod, salesOffset);
 
-  const { data: daily } = useQuery({
-    queryKey: ['report-daily'],
-    queryFn: () => api.get('/reports/daily').then(r => r.data),
-    refetchInterval: 60000,
+  // Staff report state
+  const [staffPeriod, setStaffPeriod] = useState<ReportPeriod>('daily');
+
+  // Branch report state
+  const [branchPeriod, setBranchPeriod] = useState<ReportPeriod>('daily');
+
+  // Inventory report state
+  const [invReport, setInvReport] = useState<'valuation' | 'low-stock' | 'expiry'>('valuation');
+
+  // ── Queries ──
+  const { data: salesData, isLoading: salesLoading } = useQuery({
+    queryKey: ['rpt-sales', salesPeriod, salesOffset],
+    queryFn: () => api.get(`/reports/sales-detail?from=${salesRange.from}&to=${salesRange.to}`).then(r => r.data),
   });
 
-  const { data: trend } = useQuery({
-    queryKey: ['report-trend', trendDays],
-    queryFn: () => api.get(`/reports/trend?days=${trendDays}`).then(r => r.data),
-  });
-
-  const { data: topProducts } = useQuery({
-    queryKey: ['report-top-products'],
-    queryFn: () => api.get('/reports/top-products?days=30').then(r => r.data),
-  });
-
-  const { data: paymentMethods } = useQuery({
-    queryKey: ['report-payments'],
-    queryFn: () => api.get('/reports/payment-methods?days=30').then(r => r.data),
-  });
-
-  const { data: monthly } = useQuery({
-    queryKey: ['report-monthly'],
-    queryFn: () => api.get('/reports/monthly?months=6').then(r => r.data),
-  });
-
-  const { data: inventory } = useQuery({
-    queryKey: ['report-inventory'],
-    queryFn: () => api.get('/reports/inventory-valuation').then(r => r.data),
-  });
-
-  const kpis = [
-    {
-      label: "Today's Sales",
-      value: daily?.totalSales || 0,
-      sub: 'transactions',
-      icon: ShoppingCart,
-      color: 'blue',
-      bg: 'bg-blue-50',
-      iconColor: 'text-blue-600',
+  const { data: staffData, isLoading: staffLoading } = useQuery({
+    queryKey: ['rpt-staff', staffPeriod],
+    queryFn: () => {
+      const r = getDateRange(staffPeriod);
+      return api.get(`/reports/staff-sales?from=${r.from}&to=${r.to}`).then(r => r.data);
     },
-    {
-      label: "Today's Revenue",
-      value: formatKES(daily?.totalRevenue || 0),
-      sub: 'gross revenue',
-      icon: Banknote,
-      color: 'emerald',
-      bg: 'bg-emerald-50',
-      iconColor: 'text-emerald-600',
+  });
+
+  const { data: branchData, isLoading: branchLoading } = useQuery({
+    queryKey: ['rpt-branch', branchPeriod],
+    queryFn: () => {
+      const r = getDateRange(branchPeriod);
+      return api.get(`/reports/branch-sales?from=${r.from}&to=${r.to}`).then(r => r.data);
     },
-    {
-      label: 'VAT Collected',
-      value: formatKES(daily?.totalVat || 0),
-      sub: 'today',
-      icon: Percent,
-      color: 'purple',
-      bg: 'bg-purple-50',
-      iconColor: 'text-purple-600',
+  });
+
+  const { data: invData, isLoading: invLoading } = useQuery({
+    queryKey: ['rpt-inv', invReport],
+    queryFn: () => {
+      if (invReport === 'valuation') return api.get('/reports/inventory-valuation').then(r => r.data);
+      if (invReport === 'low-stock') return api.get('/products/reports/low-stock').then(r => r.data);
+      return api.get('/products/reports/expiry').then(r => r.data);
     },
-    {
-      label: 'Inventory Value',
-      value: formatKES(inventory?.totalRetailValue || 0),
-      sub: `${inventory?.totalUnits || 0} units`,
-      icon: Package,
-      color: 'amber',
-      bg: 'bg-amber-50',
-      iconColor: 'text-amber-600',
-    },
-  ];
+  });
+
+  // ── Print handlers ──
+  function printSalesReport() {
+    if (!salesData) return;
+    const summaryHtml = `
+      <div class="summary">
+        <div class="stat"><div class="stat-label">Total Transactions</div><div class="stat-value">${salesData.totalSales}</div></div>
+        <div class="stat"><div class="stat-label">Total Revenue</div><div class="stat-value">${formatKES(salesData.totalRevenue)}</div></div>
+        <div class="stat"><div class="stat-label">VAT Collected</div><div class="stat-value">${formatKES(salesData.totalVat)}</div></div>
+        <div class="stat"><div class="stat-label">Discounts</div><div class="stat-value">${formatKES(salesData.totalDiscount || 0)}</div></div>
+      </div>
+      <p class="sub">Period: ${salesRange.label} (${salesRange.from} to ${salesRange.to})</p><hr/>
+      <table>
+        <thead><tr>
+          <th>Receipt No</th><th>Time</th><th>Customer</th>
+          <th>Payment</th><th class="right">Amount</th>
+        </tr></thead>
+        <tbody>
+          ${(salesData.sales || []).map((s: any) => `
+            <tr>
+              <td>${s.receiptNo}</td>
+              <td>${new Date(s.createdAt).toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit' })}</td>
+              <td>${s.customer ? `${s.customer.firstName} ${s.customer.lastName || ''}` : 'Walk-in'}</td>
+              <td>${s.paymentMethod}</td>
+              <td class="right bold">${formatKES(s.totalAmount)}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+        <tfoot><tr>
+          <td colspan="4" class="bold">TOTAL</td>
+          <td class="right bold green">${formatKES(salesData.totalRevenue)}</td>
+        </tr></tfoot>
+      </table>
+    `;
+    printReport(`Sales Report — ${salesRange.label}`, summaryHtml);
+  }
+
+  function printStaffReport() {
+    if (!staffData) return;
+    const r = getDateRange(staffPeriod);
+    const html = `
+      <p class="sub">Period: ${r.label}</p><hr/>
+      <table>
+        <thead><tr>
+          <th>Staff Name</th><th>Role</th>
+          <th class="right">Total Sales (Tx)</th><th class="right">Revenue</th>
+        </tr></thead>
+        <tbody>
+          ${(staffData || []).map((s: any) => `
+            <tr>
+              <td class="bold">${s.firstName} ${s.lastName}</td>
+              <td>${s.role}</td>
+              <td class="right">${s.totalSales}</td>
+              <td class="right bold">${formatKES(s.totalRevenue)}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+    printReport(`Staff Sales Report — ${r.label}`, html);
+  }
+
+  function printBranchReport() {
+    if (!branchData) return;
+    const r = getDateRange(branchPeriod);
+    const html = `
+      <p class="sub">Period: ${r.label}</p><hr/>
+      <table>
+        <thead><tr>
+          <th>Branch</th><th class="right">Transactions</th>
+          <th class="right">Revenue</th><th class="right">VAT</th>
+        </tr></thead>
+        <tbody>
+          ${(branchData || []).map((b: any) => `
+            <tr>
+              <td class="bold">${b.name}</td>
+              <td class="right">${b.totalSales}</td>
+              <td class="right bold">${formatKES(b.totalRevenue)}</td>
+              <td class="right">${formatKES(b.totalVat)}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+    printReport(`Branch Sales Report — ${r.label}`, html);
+  }
+
+  function printInventoryReport() {
+    if (!invData) return;
+    let html = '';
+    if (invReport === 'valuation') {
+      html = `
+        <div class="summary">
+          <div class="stat"><div class="stat-label">Cost Value</div><div class="stat-value">${formatKES(invData.totalCostValue)}</div></div>
+          <div class="stat"><div class="stat-label">Retail Value</div><div class="stat-value">${formatKES(invData.totalRetailValue)}</div></div>
+          <div class="stat"><div class="stat-label">Potential Profit</div><div class="stat-value">${formatKES(invData.totalPotentialProfit)}</div></div>
+          <div class="stat"><div class="stat-label">Total Units</div><div class="stat-value">${invData.totalUnits}</div></div>
+        </div><hr/>
+        <table>
+          <thead><tr>
+            <th>Product</th><th class="right">Stock</th>
+            <th class="right">Cost Value</th><th class="right">Retail Value</th><th class="right">Potential Profit</th>
+          </tr></thead>
+          <tbody>
+            ${(invData.breakdown || []).map((p: any) => `
+              <tr>
+                <td>${p.name}</td>
+                <td class="right">${p.stock}</td>
+                <td class="right">${formatKES(p.costValue)}</td>
+                <td class="right bold">${formatKES(p.retailValue)}</td>
+                <td class="right green">${formatKES(p.potentialProfit)}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+    } else if (invReport === 'low-stock') {
+      html = `<hr/><table>
+        <thead><tr><th>Product</th><th class="right">Current Stock</th><th class="right">Reorder Level</th></tr></thead>
+        <tbody>${(invData || []).map((p: any) => `
+          <tr><td>${p.name}</td><td class="right bold" style="color:#ef4444">${p.totalStock}</td><td class="right">${p.reorderLevel}</td></tr>
+        `).join('')}</tbody>
+      </table>`;
+    } else {
+      html = `<hr/><table>
+        <thead><tr><th>Product</th><th>Batch No</th><th class="right">Qty</th><th class="right">Expiry Date</th></tr></thead>
+        <tbody>${(invData || []).map((p: any) => `
+          <tr><td>${p.productName}</td><td>${p.batchNo}</td><td class="right">${p.quantity}</td>
+          <td class="right" style="color:#ef4444">${new Date(p.expiryDate).toLocaleDateString('en-KE')}</td></tr>
+        `).join('')}</tbody>
+      </table>`;
+    }
+    const titles = { valuation: 'Inventory Valuation Report', 'low-stock': 'Low Stock Report', expiry: 'Expiry Report' };
+    printReport(titles[invReport], html);
+  }
+
+  // ── Period selector component ──
+  function PeriodSelector({ value, onChange }: { value: ReportPeriod; onChange: (v: ReportPeriod) => void }) {
+    return (
+      <div className="flex gap-1">
+        {(['daily', 'weekly', 'monthly'] as ReportPeriod[]).map(p => (
+          <button key={p} onClick={() => onChange(p)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors capitalize ${
+              value === p ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}>
+            {p}
+          </button>
+        ))}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-gray-900">Analytics & Reports</h1>
-        <div className="flex items-center gap-2 text-sm text-gray-500">
+        <div>
+          <h1 className="text-xl font-bold text-gray-900">Reports</h1>
+          <p className="text-sm text-gray-400 mt-0.5">Generate and print detailed reports</p>
+        </div>
+        <div className="flex items-center gap-2 text-sm text-gray-500 bg-white border border-gray-200 rounded-xl px-3 py-2">
           <Calendar size={14} />
-          <span>{new Date().toLocaleDateString('en-KE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</span>
+          <span>{new Date().toLocaleDateString('en-KE', { weekday: 'short', day: 'numeric', month: 'long', year: 'numeric' })}</span>
         </div>
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {kpis.map((kpi) => (
-          <div key={kpi.label} className="bg-white rounded-xl border border-gray-200 p-4">
-            <div className={`w-10 h-10 ${kpi.bg} rounded-xl flex items-center justify-center mb-3`}>
-              <kpi.icon size={18} className={kpi.iconColor} />
+      {/* ── 1. SALES SUMMARY REPORTS ────────────────────────────────────── */}
+      <ReportCard icon={ShoppingCart} title="Sales Summary" color="emerald"
+        description="Daily, weekly, and monthly sales transactions and revenue">
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <PeriodSelector value={salesPeriod} onChange={p => { setSalesPeriod(p); setSalesOffset(0); }} />
+            <div className="flex items-center gap-2">
+              <button onClick={() => setSalesOffset(o => o + 1)}
+                className="px-2 py-1 rounded-lg bg-gray-100 text-gray-600 text-xs hover:bg-gray-200">← Prev</button>
+              <span className="text-sm font-medium text-gray-700 min-w-[100px] text-center">{salesRange.label}</span>
+              <button onClick={() => setSalesOffset(o => Math.max(0, o - 1))} disabled={salesOffset === 0}
+                className="px-2 py-1 rounded-lg bg-gray-100 text-gray-600 text-xs hover:bg-gray-200 disabled:opacity-40">Next →</button>
             </div>
-            <p className="text-2xl font-bold text-gray-900 leading-tight">{kpi.value}</p>
-            <p className="text-xs text-gray-500 mt-1">{kpi.label}</p>
-            <p className="text-xs text-gray-400">{kpi.sub}</p>
           </div>
-        ))}
-      </div>
 
-      {/* Sales Trend */}
-      <div className="bg-white rounded-xl border border-gray-200 p-5">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="font-semibold text-gray-800">Sales Trend</h2>
-          <div className="flex gap-1">
-            {[7, 14, 30].map(d => (
-              <button key={d} onClick={() => setTrendDays(d)}
-                className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
-                  trendDays === d ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}>
-                {d}d
-              </button>
-            ))}
-          </div>
-        </div>
-        <ResponsiveContainer width="100%" height={220}>
-          <AreaChart data={trend || []} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
-            <defs>
-              <linearGradient id="revenueGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#10b981" stopOpacity={0.15} />
-                <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
-            <XAxis dataKey="date" tick={{ fontSize: 11 }} tickFormatter={v => {
-              const d = new Date(v);
-              return `${d.getDate()}/${d.getMonth() + 1}`;
-            }} />
-            <YAxis tick={{ fontSize: 11 }} tickFormatter={v => `${(v/1000).toFixed(0)}k`} />
-            <Tooltip
-              formatter={(v: any) => [formatKES(v), 'Revenue']}
-              labelFormatter={v => new Date(v).toLocaleDateString('en-KE', { day: 'numeric', month: 'short' })}
-              contentStyle={{ borderRadius: '12px', border: '1px solid #e5e7eb', fontSize: '12px' }}
-            />
-            <Area type="monotone" dataKey="revenue" stroke="#10b981" strokeWidth={2}
-              fill="url(#revenueGrad)" dot={false} activeDot={{ r: 4 }} />
-          </AreaChart>
-        </ResponsiveContainer>
-      </div>
-
-      {/* Monthly Revenue + Payment Methods */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Monthly bar chart */}
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
-          <h2 className="font-semibold text-gray-800 mb-4">Monthly Revenue</h2>
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={monthly || []} margin={{ top: 0, right: 10, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
-              <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-              <YAxis tick={{ fontSize: 11 }} tickFormatter={v => `${(v/1000).toFixed(0)}k`} />
-              <Tooltip
-                formatter={(v: any, name: string) => [formatKES(v), name === 'revenue' ? 'Revenue' : 'VAT']}
-                contentStyle={{ borderRadius: '12px', border: '1px solid #e5e7eb', fontSize: '12px' }}
-              />
-              <Bar dataKey="revenue" fill="#10b981" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="vat" fill="#d1fae5" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-
-        {/* Payment methods pie */}
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
-          <h2 className="font-semibold text-gray-800 mb-4">Payment Methods (30 days)</h2>
-          {paymentMethods && paymentMethods.length > 0 ? (
-            <div className="flex items-center gap-4">
-              <ResponsiveContainer width="50%" height={180}>
-                <PieChart>
-                  <Pie data={paymentMethods} dataKey="amount" nameKey="method"
-                    cx="50%" cy="50%" innerRadius={45} outerRadius={75} paddingAngle={3}>
-                    {paymentMethods.map((_: any, i: number) => (
-                      <Cell key={i} fill={COLORS[i % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    formatter={(v: any) => formatKES(v)}
-                    contentStyle={{ borderRadius: '12px', border: '1px solid #e5e7eb', fontSize: '12px' }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="flex-1 space-y-2">
-                {paymentMethods.map((p: any, i: number) => (
-                  <div key={p.method} className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full" style={{ background: COLORS[i % COLORS.length] }} />
-                      <span className="text-sm text-gray-600">{p.method}</span>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-xs font-semibold text-gray-900">{formatKES(p.amount)}</p>
-                      <p className="text-xs text-gray-400">{p.count} sales</p>
-                    </div>
+          {salesLoading ? (
+            <div className="h-24 flex items-center justify-center text-gray-300 text-sm">Loading...</div>
+          ) : salesData ? (
+            <>
+              {/* Summary stats */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {[
+                  { label: 'Transactions', value: salesData.totalSales, icon: ShoppingCart, color: 'blue' },
+                  { label: 'Revenue', value: formatKES(salesData.totalRevenue), icon: Banknote, color: 'emerald' },
+                  { label: 'VAT', value: formatKES(salesData.totalVat), icon: BarChart2, color: 'purple' },
+                  { label: 'Discounts', value: formatKES(salesData.totalDiscount || 0), icon: TrendingUp, color: 'amber' },
+                ].map(s => (
+                  <div key={s.label} className="bg-gray-50 rounded-xl p-3 text-center">
+                    <p className="text-xs text-gray-500">{s.label}</p>
+                    <p className="text-lg font-bold text-gray-900 mt-1">{s.value}</p>
                   </div>
                 ))}
               </div>
-            </div>
-          ) : (
-            <div className="flex items-center justify-center h-40 text-gray-300 text-sm">
-              No sales data yet
-            </div>
-          )}
-        </div>
-      </div>
 
-      {/* Top Products + Inventory */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Top products */}
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
-          <h2 className="font-semibold text-gray-800 mb-4">Top Selling Products (30 days)</h2>
-          {topProducts && topProducts.length > 0 ? (
-            <div className="space-y-3">
-              {topProducts.map((p: any, i: number) => {
-                const maxRevenue = topProducts[0].revenue;
-                const pct = (p.revenue / maxRevenue) * 100;
-                return (
-                  <div key={i}>
-                    <div className="flex items-center justify-between mb-1">
-                      <div className="flex items-center gap-2">
-                        <span className="w-5 h-5 rounded-full bg-gray-100 text-gray-500 text-xs flex items-center justify-center font-bold">
-                          {i + 1}
-                        </span>
-                        <span className="text-sm font-medium text-gray-800 truncate max-w-[160px]">{p.name}</span>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-xs font-semibold text-gray-900">{formatKES(p.revenue)}</p>
-                        <p className="text-xs text-gray-400">{p.qty} {p.unit}</p>
-                      </div>
-                    </div>
-                    <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                      <div className="h-full bg-emerald-500 rounded-full"
-                        style={{ width: `${pct}%` }} />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="flex items-center justify-center h-32 text-gray-300 text-sm">
-              No sales data yet
-            </div>
-          )}
-        </div>
-
-        {/* Inventory valuation */}
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
-          <h2 className="font-semibold text-gray-800 mb-4">Inventory Valuation</h2>
-          <div className="grid grid-cols-2 gap-3 mb-4">
-            <div className="bg-blue-50 rounded-xl p-3">
-              <p className="text-xs text-blue-600 mb-1">Cost Value</p>
-              <p className="text-lg font-bold text-blue-800">{formatKES(inventory?.totalCostValue || 0)}</p>
-            </div>
-            <div className="bg-emerald-50 rounded-xl p-3">
-              <p className="text-xs text-emerald-600 mb-1">Retail Value</p>
-              <p className="text-lg font-bold text-emerald-800">{formatKES(inventory?.totalRetailValue || 0)}</p>
-            </div>
-            <div className="bg-purple-50 rounded-xl p-3">
-              <p className="text-xs text-purple-600 mb-1">Potential Profit</p>
-              <p className="text-lg font-bold text-purple-800">{formatKES(inventory?.totalPotentialProfit || 0)}</p>
-            </div>
-            <div className="bg-amber-50 rounded-xl p-3">
-              <p className="text-xs text-amber-600 mb-1">Total Units</p>
-              <p className="text-lg font-bold text-amber-800">{inventory?.totalUnits || 0}</p>
-            </div>
-          </div>
-
-          {/* Top value products */}
-          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Top by Value</h3>
-          <div className="space-y-1.5">
-            {(inventory?.breakdown || []).slice(0, 5).map((p: any) => (
-              <div key={p.id} className="flex items-center justify-between text-sm">
-                <span className="text-gray-700 truncate max-w-[180px]">{p.name}</span>
-                <div className="flex items-center gap-3">
-                  <span className="text-gray-400 text-xs">{p.stock} units</span>
-                  <span className="font-semibold text-gray-900">{formatKES(p.retailValue)}</span>
+              {/* Sales table preview */}
+              {salesData.sales && salesData.sales.length > 0 ? (
+                <div className="overflow-x-auto rounded-xl border border-gray-100">
+                  <table className="w-full text-sm">
+                    <thead>
+  <tr className="bg-gray-50 border-b border-gray-100">
+    <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase">Receipt</th>
+    <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase">Items</th>
+    <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase">Time</th>
+    <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase">Customer</th>
+    <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase">Payment</th>
+    <th className="text-right px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase">Amount</th>
+  </tr>
+</thead>
+                    <tbody className="divide-y divide-gray-50">
+  {salesData.sales.slice(0, 8).map((s: any) => (
+    <tr key={s.id} className="hover:bg-gray-50">
+      <td className="px-4 py-2.5 font-mono text-xs text-gray-600">{s.receiptNo}</td>
+      <td className="px-4 py-2.5 text-gray-500 text-xs">
+        {s.items?.reduce((sum: number, i: any) => sum + i.quantity, 0)} items
+      </td>
+      <td className="px-4 py-2.5 text-gray-500 text-xs">
+        {new Date(s.createdAt).toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit' })}
+      </td>
+      <td className="px-4 py-2.5 text-gray-700">
+        {s.customer ? `${s.customer.firstName} ${s.customer.lastName || ''}` : 'Walk-in'}
+      </td>
+      <td className="px-4 py-2.5">
+        <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700">
+          {s.paymentMethod}
+        </span>
+      </td>
+      <td className="px-4 py-2.5 text-right font-semibold text-gray-900">{formatKES(s.totalAmount)}</td>
+    </tr>
+  ))}
+</tbody>
+                  </table>
+                  {salesData.sales.length > 8 && (
+                    <p className="text-center text-xs text-gray-400 py-2">
+                      Showing 8 of {salesData.sales.length} — print for full report
+                    </p>
+                  )}
                 </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
+              ) : (
+                <div className="h-20 flex items-center justify-center text-gray-300 text-sm">No sales for this period</div>
+              )}
+            </>
+          ) : null}
 
-      {/* Today's payment breakdown */}
-      {daily?.byPaymentMethod && Object.keys(daily.byPaymentMethod).length > 0 && (
-        <div className="bg-white rounded-xl border border-gray-200 p-5">
-          <h2 className="font-semibold text-gray-800 mb-4">Today's Sales by Payment Method</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {Object.entries(daily.byPaymentMethod).map(([method, amount]: any, i) => (
-              <div key={method} className="rounded-xl p-3 text-center"
-                style={{ background: `${COLORS[i]}15`, border: `1px solid ${COLORS[i]}30` }}>
-                <p className="text-xs font-medium mb-1" style={{ color: COLORS[i] }}>{method}</p>
-                <p className="text-lg font-bold text-gray-900">{formatKES(amount)}</p>
-              </div>
+          <button onClick={printSalesReport} disabled={!salesData || salesLoading}
+            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 transition-colors disabled:opacity-40">
+            <Printer size={15} />
+            Print {salesPeriod.charAt(0).toUpperCase() + salesPeriod.slice(1)} Sales Report
+          </button>
+        </div>
+      </ReportCard>
+
+      {/* ── 2. STAFF SALES REPORT ────────────────────────────────────────── */}
+      <ReportCard icon={Users} title="Staff Sales Report" color="blue"
+        description="Detailed sales performance by individual staff members">
+        <div className="space-y-4">
+          <PeriodSelector value={staffPeriod} onChange={setStaffPeriod} />
+
+          {staffLoading ? (
+            <div className="h-24 flex items-center justify-center text-gray-300 text-sm">Loading...</div>
+          ) : staffData && staffData.length > 0 ? (
+            <div className="overflow-x-auto rounded-xl border border-gray-100">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-100">
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase">Staff Name</th>
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase">Role</th>
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase">Branch</th>
+                    <th className="text-right px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase">Total Sales</th>
+                    <th className="text-right px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase">Revenue</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {staffData.map((s: any) => (
+                    <tr key={s.userId} className="hover:bg-gray-50">
+                      <td className="px-4 py-2.5 font-medium text-gray-800">{s.firstName} {s.lastName}</td>
+                      <td className="px-4 py-2.5">
+                        <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700">{s.role}</span>
+                      </td>
+                      <td className="px-4 py-2.5 text-gray-500 text-xs">{s.branchName}</td>
+                      <td className="px-4 py-2.5 text-right text-gray-700">{s.totalSales} tx</td>
+                      <td className="px-4 py-2.5 text-right font-semibold text-gray-900">{formatKES(s.totalRevenue)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="h-20 flex items-center justify-center text-gray-300 text-sm">No data for this period</div>
+          )}
+
+          <button onClick={printStaffReport} disabled={!staffData || staffLoading}
+            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-40">
+            <Printer size={15} />
+            Print Staff Sales Report
+          </button>
+        </div>
+      </ReportCard>
+
+      {/* ── 3. BRANCH SALES REPORT ───────────────────────────────────────── */}
+      <ReportCard icon={GitBranch} title="Branch Sales Report" color="purple"
+        description="Revenue and transaction breakdown by branch">
+        <div className="space-y-4">
+          <PeriodSelector value={branchPeriod} onChange={setBranchPeriod} />
+
+          {branchLoading ? (
+            <div className="h-24 flex items-center justify-center text-gray-300 text-sm">Loading...</div>
+          ) : branchData && branchData.length > 0 ? (
+            <div className="overflow-x-auto rounded-xl border border-gray-100">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-100">
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase">Branch</th>
+                    <th className="text-right px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase">Transactions</th>
+                    <th className="text-right px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase">Items Sold</th>
+                    <th className="text-right px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase">Revenue</th>
+                    <th className="text-right px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase">VAT</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {branchData.map((b: any) => (
+                    <tr key={b.branchId} className="hover:bg-gray-50">
+                      <td className="px-4 py-2.5 font-medium text-gray-800">{b.name}</td>
+                      <td className="px-4 py-2.5 text-right text-gray-600">{b.totalSales}</td>
+                      <td className="px-4 py-2.5 text-right text-gray-600">{b.itemsSold}</td>
+                      <td className="px-4 py-2.5 text-right font-semibold text-gray-900">{formatKES(b.totalRevenue)}</td>
+                      <td className="px-4 py-2.5 text-right text-gray-500">{formatKES(b.totalVat)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="h-20 flex items-center justify-center text-gray-300 text-sm">No data for this period</div>
+          )}
+
+          <button onClick={printBranchReport} disabled={!branchData || branchLoading}
+            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-purple-600 text-white text-sm font-medium hover:bg-purple-700 transition-colors disabled:opacity-40">
+            <Printer size={15} />
+            Print Branch Sales Report
+          </button>
+        </div>
+      </ReportCard>
+
+      {/* ── 4. INVENTORY & STOCK REPORTS ─────────────────────────────────── */}
+      <ReportCard icon={Package} title="Inventory & Stock" color="amber"
+        description="Inventory valuation, low stock alerts, and expiry tracking">
+        <div className="space-y-4">
+          <div className="flex gap-2 flex-wrap">
+            {[
+              { key: 'valuation', label: 'Valuation' },
+              { key: 'low-stock', label: 'Low Stock' },
+              { key: 'expiry', label: 'Expiry Report' },
+            ].map(o => (
+              <button key={o.key} onClick={() => setInvReport(o.key as any)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                  invReport === o.key ? 'bg-amber-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}>
+                {o.label}
+              </button>
             ))}
           </div>
+
+          {invLoading ? (
+            <div className="h-24 flex items-center justify-center text-gray-300 text-sm">Loading...</div>
+          ) : invReport === 'valuation' && invData ? (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-blue-50 rounded-xl p-3"><p className="text-xs text-blue-600">Cost Value</p><p className="text-lg font-bold text-blue-800">{formatKES(invData.totalCostValue)}</p></div>
+                <div className="bg-emerald-50 rounded-xl p-3"><p className="text-xs text-emerald-600">Retail Value</p><p className="text-lg font-bold text-emerald-800">{formatKES(invData.totalRetailValue)}</p></div>
+                <div className="bg-purple-50 rounded-xl p-3"><p className="text-xs text-purple-600">Potential Profit</p><p className="text-lg font-bold text-purple-800">{formatKES(invData.totalPotentialProfit)}</p></div>
+                <div className="bg-amber-50 rounded-xl p-3"><p className="text-xs text-amber-600">Total Units</p><p className="text-lg font-bold text-amber-800">{invData.totalUnits}</p></div>
+              </div>
+              <div className="overflow-x-auto rounded-xl border border-gray-100">
+                <table className="w-full text-sm">
+                  <thead><tr className="bg-gray-50 border-b border-gray-100">
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase">Product</th>
+                    <th className="text-right px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase">Stock</th>
+                    <th className="text-right px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase">Cost Value</th>
+                    <th className="text-right px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase">Retail Value</th>
+                  </tr></thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {(invData.breakdown || []).map((p: any) => (
+                      <tr key={p.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-2.5 font-medium text-gray-800">{p.name}</td>
+                        <td className="px-4 py-2.5 text-right text-gray-600">{p.stock}</td>
+                        <td className="px-4 py-2.5 text-right text-gray-600">{formatKES(p.costValue)}</td>
+                        <td className="px-4 py-2.5 text-right font-semibold text-gray-900">{formatKES(p.retailValue)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          ) : invReport === 'low-stock' && invData ? (
+            <div className="overflow-x-auto rounded-xl border border-gray-100">
+              <table className="w-full text-sm">
+                <thead><tr className="bg-gray-50 border-b border-gray-100">
+                  <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase">Product</th>
+                  <th className="text-right px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase">Current Stock</th>
+                  <th className="text-right px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase">Reorder Level</th>
+                </tr></thead>
+                <tbody className="divide-y divide-gray-50">
+                  {(invData || []).map((p: any) => (
+                    <tr key={p.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-2.5 font-medium text-gray-800">{p.name}</td>
+                      <td className="px-4 py-2.5 text-right font-bold text-red-500">{p.totalStock}</td>
+                      <td className="px-4 py-2.5 text-right text-gray-500">{p.reorderLevel}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : invReport === 'expiry' && invData ? (
+            <div className="overflow-x-auto rounded-xl border border-gray-100">
+              <table className="w-full text-sm">
+                <thead><tr className="bg-gray-50 border-b border-gray-100">
+                  <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase">Product</th>
+                  <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase">Batch No</th>
+                  <th className="text-right px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase">Qty</th>
+                  <th className="text-right px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase">Expiry Date</th>
+                </tr></thead>
+                <tbody className="divide-y divide-gray-50">
+                  {(invData || []).map((p: any, i: number) => (
+                    <tr key={i} className="hover:bg-gray-50">
+                      <td className="px-4 py-2.5 font-medium text-gray-800">{p.productName}</td>
+                      <td className="px-4 py-2.5 font-mono text-xs text-gray-600">{p.batchNo}</td>
+                      <td className="px-4 py-2.5 text-right text-gray-600">{p.quantity}</td>
+                      <td className="px-4 py-2.5 text-right font-semibold text-red-500">
+                        {new Date(p.expiryDate).toLocaleDateString('en-KE')}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="h-20 flex items-center justify-center text-gray-300 text-sm">No data available</div>
+          )}
+
+          <button onClick={printInventoryReport} disabled={!invData || invLoading}
+            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-amber-500 text-white text-sm font-medium hover:bg-amber-600 transition-colors disabled:opacity-40">
+            <Printer size={15} />
+            Print {invReport === 'valuation' ? 'Inventory Valuation' : invReport === 'low-stock' ? 'Low Stock' : 'Expiry'} Report
+          </button>
         </div>
-      )}
+      </ReportCard>
     </div>
   );
 }
