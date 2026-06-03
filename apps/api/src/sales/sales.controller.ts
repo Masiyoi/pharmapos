@@ -17,12 +17,12 @@ export class SalesController {
 
   @Get()
   findAll(@Query() query: any, @CurrentUser() user: any) {
-    return this.salesService.findAll(user.branchId, query);
+    return this.salesService.findAll(user.branchId, query, user.id, user.role);
   }
 
   @Get('summary/daily')
   getDailySummary(@Query('date') date: string, @CurrentUser() user: any) {
-    return this.salesService.getDailySummary(user.branchId, date);
+    return this.salesService.getDailySummary(user.branchId, date, user.id, user.role);
   }
 
   @Get(':id')
