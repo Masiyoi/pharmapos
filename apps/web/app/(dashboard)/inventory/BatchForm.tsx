@@ -1,6 +1,6 @@
 'use client';
-import { useForm } from 'react-hook-form';
 import { useForm, type Resolver } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
@@ -26,7 +26,7 @@ interface Props {
 
 export default function BatchForm({ product, onClose, onSuccess }: Props) {
   const { register, handleSubmit, watch, formState: { errors } } = useForm<FormData>({
-    resolver: zodResolver(schema),
+    resolver: zodResolver(schema) as Resolver<FormData>,
     defaultValues: {
       costPrice: Number(product.costPrice),
       sellingPrice: Number(product.sellingPrice),
@@ -116,7 +116,6 @@ export default function BatchForm({ product, onClose, onSuccess }: Props) {
             </select>
           </div>
 
-          {/* Total cost preview */}
           {qty > 0 && cost > 0 && (
             <div className="bg-gray-50 rounded-xl p-3 flex justify-between text-sm">
               <span className="text-gray-500">Total Cost Value</span>
